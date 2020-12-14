@@ -18,9 +18,16 @@
     matrix_postgres_docker_image_to_use: "{{ matrix_postgres_docker_image_latest if matrix_postgres_detected_version_corresponding_docker_image == '' else matrix_postgres_detected_version_corresponding_docker_image }}"
   when: matrix_postgres_enabled|bool
 
-- name: Warn if on an old version of Postgres
-  debug:
-    msg: "NOTE: Your setup is on an old Postgres version ({{ matrix_postgres_docker_image_to_use }}), while {{ matrix_postgres_docker_image_latest }} is supported. You can upgrade using --tags=upgrade-postgres"
+- name: Inject warning if on an old version of Postgres
+  set_fact:
+    matrix_playbook_runtime_results: |
+      {{
+        matrix_playbook_runtime_results|default([])
+        +
+        [
+          "NOTE: Your setup is on an old Postgres version ({{ matrix_postgres_docker_image_to_use }}), while {{ matrix_postgres_docker_image_latest }} is supported. You can upgrade using --tags=upgrade-postgres"
+        ]
+      }}
   when: "matrix_postgres_enabled|bool and matrix_postgres_docker_image_to_use != matrix_postgres_docker_image_latest"
 
 # Even if we don't run the internal server, we still need this for running the CLI
@@ -38,7 +45,7 @@
     state: directory
     mode: 0700
     owner: "{{ matrix_user_username }}"
-    group: "{{ matrix_user_username }}"
+    group: "{{ matrix_user_groupname }}"
   with_items:
     - "{{ matrix_postgres_base_path }}"
     - "{{ matrix_postgres_data_path }}"
@@ -52,7 +59,7 @@
     path: "{{ matrix_postgres_data_path }}"
     state: directory
     owner: "{{ matrix_user_username }}"
-    group: "{{ matrix_user_username }}"
+    group: "{{ matrix_user_groupname }}"
     recurse: yes
   when: matrix_postgres_enabled|bool
 
@@ -69,34 +76,34 @@
 - name: Ensure matrix-postgres-cli script created
   template:
     src: "{{ role_path }}/templates/usr-local-bin/matrix-postgres-cli.j2"
-    dest: "/usr/local/bin/matrix-postgres-cli"
+    dest: "{{ matrix_local_bin_path }}/matrix-postgres-cli"
     mode: 0750
   when: matrix_postgres_enabled|bool
 
 - name: Ensure matrix-change-user-admin-status script created
   template:
     src: "{{ role_path }}/templates/usr-local-bin/matrix-change-user-admin-status.j2"
-    dest: "/usr/local/bin/matrix-change-user-admin-status"
+    dest: "{{ matrix_local_bin_path }}/matrix-change-user-admin-status"
     mode: 0750
   when: matrix_postgres_enabled|bool
 
 - name: (Migration) Ensure old matrix-make-user-admin script deleted
   file:
-    path: "/usr/local/bin/matrix-make-user-admin"
+    path: "{{ matrix_local_bin_path }}/matrix-make-user-admin"
     state: absent
   when: matrix_postgres_enabled|bool
 
 - name: Ensure matrix-postgres-update-user-password-hash script created
   template:
     src: "{{ role_path }}/templates/usr-local-bin/matrix-postgres-update-user-password-hash.j2"
-    dest: "/usr/local/bin/matrix-postgres-update-user-password-hash"
+    dest: "{{ matrix_local_bin_path }}/matrix-postgres-update-user-password-hash"
     mode: 0750
   when: matrix_postgres_enabled|bool
 
 - name: Ensure matrix-postgres.service installed
   template:
     src: "{{ role_path }}/templates/systemd/matrix-postgres.service.j2"
-    dest: "/etc/systemd/system/matrix-postgres.service"
+    dest: "{{ matrix_systemd_path }}/matrix-postgres.service"
     mode: 0644
   register: matrix_postgres_systemd_service_result
   when: matrix_postgres_enabled|bool
@@ -112,7 +119,7 @@
 
 - name: Check existence of matrix-postgres service
   stat:
-    path: "/etc/systemd/system/matrix-postgres.service"
+    path: "{{ matrix_systemd_path }}/matrix-postgres.service"
   register: matrix_postgres_service_stat
   when: "not matrix_postgres_enabled|bool"
 
@@ -125,7 +132,7 @@
 
 - name: Ensure matrix-postgres.service doesn't exist
   file:
-    path: "/etc/systemd/system/matrix-postgres.service"
+    path: "{{ matrix_systemd_path }}/matrix-postgres.service"
     state: absent
   when: "not matrix_postgres_enabled|bool and matrix_postgres_service_stat.stat.exists"
 
@@ -148,7 +155,7 @@
 
 - name: Remove Postgres scripts
   file:
-    path: "/usr/local/bin/{{ item }}"
+    path: "{{ matrix_local_bin_path }}/{{ item }}"
     state: absent
   with_items:
     - matrix-postgres-cli

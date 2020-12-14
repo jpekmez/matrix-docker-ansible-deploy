@@ -1,3 +1,323 @@
+# 2020-12-11
+
+## synapse-janitor support removed
+
+We've removed support for the unmaintained [synapse-janitor](https://github.com/xwiki-labs/synapse_scripts) script. There's been past reports of it corrupting the Synapse database. Since there hasn't been any new development on it and it doesn't seem too useful nowadays, there's no point in including it in the playbook.
+
+If you need to clean up or compact your database, consider using the Synapse Admin APIs directly. See our [Synapse maintenance](docs/maintenance-synapse.md) and [Postgres maintenance](docs/maintenance-postgres.md) documentation pages for more details.
+
+
+## Docker 20.10 is here
+
+(No need to do anything special in relation to this. Just something to keep in mind)
+
+Docker 20.10 got released recently and your server will likely get it the next time you update.
+
+This is the first major Docker update in a long time and it packs a lot of changes.
+Some of them introduced some breakage for us initially (see [here](https://github.com/spantaleev/matrix-docker-ansible-deploy/commit/d08b27784f222effcbce2abf924bf07bbe0893be) and [here](https://github.com/spantaleev/matrix-docker-ansible-deploy/commit/7593d969e316cc0144bce378a5be58c76c2c37ee)), but it should be all good now.
+
+
+# 2020-12-08
+
+## openid APIs exposed by default on the federation port when federation disabled
+
+We've changed some defaults. People running with our default configuration (federation enabled), are not affected at all.
+
+If you are running an unfederated server (`matrix_synapse_federation_enabled: false`), this may be of interest to you.
+
+When federation is disabled, but ma1sd or Dimension are enabled, we'll now expose the `openid` APIs on the federation port.
+These APIs are necessary for some ma1sd features to work. If you'd like to prevent this, you can: `matrix_synapse_federation_port_openid_resource_required: false`.
+
+
+# 2020-11-27
+
+## Recent Jitsi updates may require configuration changes
+
+We've recently [updated from Jitsi build 4857 to build 5142](https://github.com/spantaleev/matrix-docker-ansible-deploy/pull/719), which brings a lot of configuration changes.
+
+**If you use our default Jitsi settings, you won't have to do anything.**
+
+People who have [fine-tuned Jitsi](docs/configuring-playbook-jitsi.md#optional-fine-tune-jitsi) may find that some options got renamed now, others are gone and yet others still need to be defined in another way.
+
+The next time you run the playbook [installation](docs/installing.md) command, our validation logic will tell you if you're using some variables like that and will recommend a migration path for each one.
+
+Additionally, we've recently disabled transcriptions (`matrix_jitsi_enable_transcriptions: false`) and recording (`matrix_jitsi_enable_recording: false`) by default. These features did not work anyway, because we don't install the required dependencies for them (Jigasi and Jibri, respectively). If you've been somehow pointing your Jitsi installation to some manually installed Jigasi/Jibri service, you may need to toggle these flags back to enabled to have transcriptions and recordings working.
+
+
+# 2020-11-23
+
+## Breaking change matrix-sms-bridge
+
+Because of many problems using gammu as SMS provider, matrix-sms-bridge now uses (https://github.com/RebekkaMa/android-sms-gateway-server) by default. See (the docs)[./docs/configuring-playbook-bridge-matrix-bridge-sms.md] which new vars you need to add.
+
+If you are using this playbook to deploy matrix-sms-bridge and still really want to use gammu as SMS provider, we could possibly add support for both android-sms-gateway-server and gammu.
+
+# 2020-11-13
+
+## Breaking change matrix-sms-bridge
+
+The new version of [matrix-sms-bridge](https://github.com/benkuly/matrix-sms-bridge) changed its database from neo4j to h2. You need to sync the bridge at the first start. Note that this only will sync rooms where the @smsbot:yourServer is member. For rooms without @smsbot:yourServer you need to kick and invite the telephone number **or** invite @smsbot:yourServer.
+
+1. Add the following to your `vars.yml` file: `matrix_sms_bridge_container_extra_arguments=['--env SPRING_PROFILES_ACTIVE=initialsync']`
+2. Login to your host shell and remove old systemd file from your host: `rm /etc/systemd/system/matrix-sms-bridge-database.service`
+2. Run `ansible-playbook -i inventory/hosts setup.yml --tags=setup-matrix-sms-bridge,start`
+3. Login to your host shell and check the logs with `journalctl -u matrix-sms-bridge` until the sync finished.
+4. Remove the var from the first step.
+5. Run `ansible-playbook -i inventory/hosts setup.yml --tags=setup-all,start`.
+
+# 2020-11-10
+
+## Dynamic DNS support
+
+Thanks to [Scott Crossen](https://github.com/scottcrossen), the playbook can now manage Dynamic DNS for you using [ddclient](https://ddclient.net/).
+
+To learn more, follow our [Dynamic DNS docs page](docs/configuring-playbook-dynamic-dns.md).
+
+
+# 2020-10-28
+
+## (Compatibility Break) https://matrix.DOMAIN/ now redirects to https://element.DOMAIN/
+
+Until now, we used to serve a static page coming from Synapse at `https://matrix.DOMAIN/`. This page was not very useful to anyone.
+
+Since `matrix.DOMAIN` may be accessed by regular users in certain conditions, it's probably better to redirect them to a better place (e.g. to the [Element](docs/configuring-playbook-client-element.md) client).
+
+If Element is installed (`matrix_client_element_enabled: true`, which it is by default), we now redirect people to it, instead of showing them a Synapse static page.
+
+If you'd like to control where the redirect goes, use the `matrix_nginx_proxy_proxy_matrix_client_redirect_root_uri_to_domain` variable.
+To restore the old behavior of not redirecting anywhere and serving the Synapse static page, set it to an empty value (`matrix_nginx_proxy_proxy_matrix_client_redirect_root_uri_to_domain: ""`).
+
+
+# 2020-10-26
+
+## (Compatibility Break) /_synapse/admin is no longer publicly exposed by default
+
+We used to expose the Synapse Admin APIs publicly (at `https://matrix.DOMAIN/_synapse/admin`).
+These APIs require authentication with a valid access token, so it's not that big a deal to expose them.
+
+However, following [official Synapse's reverse-proxying recommendations](https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.md#synapse-administration-endpoints), we're no longer exposing `/_synapse/admin` by default.
+
+If you'd like to restore restore the old behavior and expose `/_synapse/admin` publicly, you can use the following configuration (in your `vars.yml`):
+
+```yaml
+matrix_nginx_proxy_proxy_matrix_client_api_forwarded_location_synapse_admin_api_enabled: true
+```
+
+
+# 2020-10-02
+
+## Minimum Ansible version raised to v2.7.0
+
+We were claiming to support [Ansible](https://www.ansible.com/) v2.5.2 and higher, but issues like [#662](https://github.com/spantaleev/matrix-docker-ansible-deploy/issues/662) demonstrate that we need at least v2.7.0.
+
+If you've been using the playbook without getting any errors until now, you're probably on a version higher than that already (or you're not using the `matrix-ma1sd` and `matrix-client-element` roles).
+
+Our [Ansible docs page](docs/ansible.md) contains information on how to run a more up-to-date version of Ansible.
+
+
+# 2020-10-01
+
+## Postgres 13 support
+
+The playbook now installs [Postgres 13](https://www.postgresql.org/about/news/postgresql-13-released-2077/) by default.
+
+If you have have an existing setup, it's likely running on an older Postgres version (9.x, 10.x, 11.x or 12.x). You can easily upgrade by following the [upgrading PostgreSQL guide](docs/maintenance-postgres.md#upgrading-postgresql).
+
+# 2020-09-01
+
+## matrix-registration support
+
+The playbook can now help you set up [matrix-registration](https://github.com/ZerataX/matrix-registration) - an application that lets you keep your Matrix server's registration private, but still allow certain users (those having a unique registration link) to register by themselves.
+
+See our [Setting up matrix-registration](docs/configuring-playbook-matrix-registration.md) documentation page to get started.
+
+
+# 2020-08-21
+
+## rust-synapse-compress-state support
+
+The playbook can now help you use [rust-synapse-compress-state](https://github.com/matrix-org/rust-synapse-compress-state) to compress the state groups in your Synapse database.
+
+See our [Compressing state with rust-synapse-compress-state](docs/maintenance-synapse.md#compressing-state-with-rust-synapse-compress-state) documentation page to get started.
+
+
+# 2020-07-22
+
+## Synapse Admin support
+
+The playbook can now help you set up [synapse-admin](https://github.com/Awesome-Technologies/synapse-admin).
+
+See our [Setting up Synapse Admin](docs/configuring-playbook-synapse-admin.md) documentation to get started.
+
+
+# 2020-07-20
+
+## matrix-reminder-bot support
+
+The playbook can now help you set up [matrix-reminder-bot](https://github.com/anoadragon453/matrix-reminder-bot).
+
+See our [Setting up matrix-reminder-bot](docs/configuring-playbook-bot-matrix-reminder-bot.md) documentation to get started.
+
+
+# 2020-07-17
+
+## (Compatibility Break) Riot is now Element
+
+As per the official announcement, [Riot has been rebraned to Element](https://element.io/blog/welcome-to-element/).
+
+The playbook follows suit. Existing installations have a few options for how to handle this.
+
+See our [Migrating to Element](docs/configuring-playbook-riot-web.md#migrating-to-element) documentation page for more details.
+
+
+# 2020-07-03
+
+## Steam bridging support via mx-puppet-steam
+
+Thanks to [Hugues Morisset](https://github.com/izissise)'s efforts, the playbook now supports bridging to [Steam](https://steamapp.com/) via the [mx-puppet-steam](https://github.com/icewind1991/mx-puppet-steam) bridge. See our [Setting up MX Puppet Steam bridging](docs/configuring-playbook-bridge-mx-puppet-steam.md) documentation page for getting started.
+
+
+# 2020-07-01
+
+## Discord bridging support via mx-puppet-discord
+
+Thanks to [Hugues Morisset](https://github.com/izissise)'s efforts, the playbook now supports bridging to [Discord](https://discordapp.com/) via the [mx-puppet-discord](https://github.com/Sorunome/mx-puppet-discord) bridge. See our [Setting up MX Puppet Discord bridging](docs/configuring-playbook-bridge-mx-puppet-discord.md) documentation page for getting started.
+
+**Note**: this is a new Discord bridge. The playbook still retains Discord bridging via [matrix-appservice-discord](docs/configuring-playbook-bridge-appservice-discord.md). You're free too use the bridge that serves you better, or even both (for different users and use-cases).
+
+
+# 2020-06-30
+
+## Instagram and Twitter bridging support
+
+Thanks to [Johanna Dorothea Reichmann](https://github.com/jdreichmann)'s efforts, the playbook now supports bridging to [Instagram](https://www.instagram.com/) via the [mx-puppet-instagram](https://github.com/Sorunome/mx-puppet-instagram) bridge. See our [Setting up MX Puppet Instagram bridging](docs/configuring-playbook-bridge-mx-puppet-instagram.md) documentation page for getting started.
+
+Thanks to [Tulir Asokan](https://github.com/tulir)'s efforts, the playbook now supports bridging to [Twitter](https://twitter.com/) via the [mx-puppet-twitter](https://github.com/Sorunome/mx-puppet-twitter) bridge. See our [Setting up MX Puppet Twitter bridging](docs/configuring-playbook-bridge-mx-puppet-twitter.md) documentation page for getting started.
+
+
+# 2020-06-28
+
+## (Post Mortem / fixed Security Issue) Re-enabling User Directory search powered by the ma1sd Identity Server
+
+User Directory search requests used to go to the ma1sd identity server by default, which queried its own stores and the Synapse database.
+
+ma1sd's [security issue](https://github.com/ma1uta/ma1sd/issues/44) has been fixed in version `2.4.0`, with [this commit](ma1uta/ma1sd@2bb5a734d11662b06471113cf3d6b4cee5e33a85). `ma1sd 2.4.0` is now the default version for this playbook. For more information on what happened, please check the mentioned issue.
+
+We are re-enabling user directory search with this update. Those who would like to keep it disabled can use this configuration: `matrix_nginx_proxy_proxy_matrix_user_directory_search_enabled: false`
+
+As always, re-running the playbook is enough to get the updated bits.
+
+# 2020-06-11
+
+## SMS bridging requires db reset
+
+The current version of [matrix-sms-bridge](https://github.com/benkuly/matrix-sms-bridge) needs you to delete the database to work as expected. Just remove `/matrix/matrix-sms-bridge/database/*`. It also adds a new requried var `matrix_sms_bridge_default_region`.
+
+To reuse your existing rooms, invite `@smsbot:yourServer` to the room or write a message. You are also able to use automated room creation with telephonenumers by writing `sms send -t 01749292923 "Hello World"` in a room with `@smsbot:yourServer`. See [the docs](https://github.com/benkuly/matrix-sms-bridge) for more information.
+
+# 2020-06-05
+
+## SMS bridging support
+
+Thanks to [benkuly](https://github.com/benkuly)'s efforts, the playbook now supports bridging to SMS (with one telephone number only) via [matrix-sms-bridge](https://github.com/benkuly/matrix-sms-bridge).
+
+See our [Setting up Matrix SMS bridging](docs/configuring-playbook-bridge-matrix-bridge-sms.md) documentation page for getting started.
+
+
+# 2020-05-19
+
+## (Compatibility Break / Security Issue) Disabling User Directory search powered by the ma1sd Identity Server
+
+User Directory search requests used to go to the ma1sd identity server by default, which queried its own stores and the Synapse database.
+
+ma1sd current has [a security issue](https://github.com/ma1uta/ma1sd/issues/44), which made it leak information about all users - including users created by bridges, etc.
+
+Until the issue gets fixed, we're making User Directory search not go to ma1sd by default. You **need to re-run the playbook and restart services to apply this workaround**.
+
+*If you insist on restoring the old behavior* (**which has a security issue!**), you *might* use this configuration: `matrix_nginx_proxy_proxy_matrix_user_directory_search_enabled: "{{ matrix_ma1sd_enabled }}"`
+
+
+# 2020-04-28
+
+## Newer IRC bridge (with potential breaking change)
+
+This upgrades matrix-appservice-irc from 0.14.1 to 0.16.0.  Upstream
+made a change to how you define manual mappings.  If you added a
+`mapping` to your configuration, you will need to update it accoring
+to the [upstream
+instructions](https://github.com/matrix-org/matrix-appservice-irc/blob/master/CHANGELOG.md#0150-2020-02-05).
+If you did not include `mappings` in your configuration for IRC, no
+change is necessary.  `mappings` is not part of the default
+configuration.
+
+
+# 2020-04-23
+
+## Slack bridging support
+
+Thanks to [Rodrigo Belem](https://github.com/rbelem)'s efforts, the playbook now supports bridging to [Slack](https://slack.com) via the [mx-puppet-slack](https://github.com/Sorunome/mx-puppet-slack) bridge.
+
+See our [Setting up MX Puppet Slack bridging](docs/configuring-playbook-bridge-mx-puppet-slack.md) documentation page for getting started.
+
+
+# 2020-04-09
+
+## Skype bridging support
+
+Thanks to [Rodrigo Belem](https://github.com/rbelem)'s efforts, the playbook now supports bridging to [Skype](https://www.skype.com) via the [mx-puppet-skype](https://github.com/Sorunome/mx-puppet-skype) bridge.
+
+See our [Setting up MX Puppet Skype bridging](docs/configuring-playbook-bridge-mx-puppet-skype.md) documentation page for getting started.
+
+
+# 2020-04-05
+
+## Private Jitsi support
+
+The [Jitsi support](#jitsi-support) we had landed a few weeks ago was working well, but it was always open to the whole world.
+
+Running such an open instance is not desirable to most people, so [teutat3s](https://github.com/teutat3s) has contributed support for making Jitsi use authentication.
+
+To make your Jitsi server more private, see the [configure internal Jitsi authentication and guests mode](docs/configuring-playbook-jitsi.md#optional-configure-internal-jitsi-authentication-and-guests-mode) section in our Jitsi documentation.
+
+
+# 2020-04-03
+
+## (Potential Backward Compatibility Break) ma1sd replaces mxisd
+
+Thanks to [Marcel Partap](https://github.com/eMPee584)'s efforts, the [mxisd](https://github.com/kamax-io/mxisd) identity server, which has been deprecated for a long time, has finally been replaced by [ma1sd](https://github.com/ma1uta/ma1sd), a compatible fork.
+
+**If you're using the default playbook configuration**, you don't need to do anything -- your mxisd installation will be replaced with ma1sd and all existing data will be migrated automatically the next time you run the playbook.
+
+**If you're doing something more special** (defining custom `matrix_mxisd_*` variables), the playbook will ask you to rename them to `matrix_ma1sd_*`.
+You're also encouraged to test that ma1sd works well for such a more custom setup.
+
+
+# 2020-03-29
+
+## Archlinux support
+
+Thanks to [Christian Lupus](https://github.com/christianlupus)'s efforts, the playbook now supports installing to an [Archlinux](https://www.archlinux.org/) server.
+
+
+# 2020-03-24
+
+## Jitsi support
+
+The playbook can now (optionally) install the [Jitsi](https://jitsi.org/) video-conferencing platform and integrate it with [Riot](docs/configuring-playbook-riot-web.md).
+
+See our [Jitsi documentation page](docs/configuring-playbook-jitsi.md) to get started.
+
+
+# 2020-03-15
+
+## Raspberry Pi support
+
+Thanks to [Gergely Horváth](https://github.com/hooger)'s effort, the playbook supports installing to a Raspberry Pi server, for at least some of the services.
+
+Since most ready-made container images do not support that architecture, we achieve this by building images locally on the device itself.
+See our [Self-building documentation page](docs/self-building.md) for how to get started.
+
+
 # 2020-02-26
 
 ## Riot-web themes are here

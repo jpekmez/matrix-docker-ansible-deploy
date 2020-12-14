@@ -31,18 +31,21 @@ When you're done with all the configuration you'd like to do, continue with [Ins
 
 - [Setting up the Dimension Integration Manager](configuring-playbook-dimension.md) (optional, but recommended; after [installing](installing.md))
 
+- [Setting up the Jitsi video-conferencing platform](configuring-playbook-jitsi.md) (optional)
+
+- [Setting Dynamic DNS](configuring-playbook-dynamic-dns.md) (optional)
 
 ### Core service adjustments
 
 - [Configuring Synapse](configuring-playbook-synapse.md) (optional)
 
-- [Configuring Riot-web](configuring-playbook-riot-web.md) (optional)
+- [Configuring Element](configuring-playbook-client-element.md) (optional)
 
 - [Storing Matrix media files on Amazon S3](configuring-playbook-s3.md) (optional)
 
 - [Using an external PostgreSQL server](configuring-playbook-external-postgres.md) (optional)
 
-- [Adjusting mxisd Identity Server configuration](configuring-playbook-mxisd.md) (optional)
+- [Adjusting ma1sd Identity Server configuration](configuring-playbook-ma1sd.md) (optional)
 
 - [Adjusting SSL certificate retrieval](configuring-playbook-ssl-certificates.md) (optional, advanced)
 
@@ -65,6 +68,10 @@ When you're done with all the configuration you'd like to do, continue with [Ins
 
 
 ### Authentication and user-related
+
+- [Setting up Synapse Admin](configuring-playbook-synapse-admin.md) (optional)
+
+- [Setting up matrix-registration](configuring-playbook-matrix-registration.md) (optional)
 
 - [Setting up the REST authentication password provider module](configuring-playbook-rest-auth.md) (optional, advanced)
 
@@ -95,4 +102,23 @@ When you're done with all the configuration you'd like to do, continue with [Ins
 
 - [Setting up Appservice Webhooks bridging](configuring-playbook-bridge-appservice-webhooks.md) (optional)
 
+- [Setting up MX Puppet Skype bridging](configuring-playbook-bridge-mx-puppet-skype.md) (optional)
+
+- [Setting up MX Puppet Slack bridging](configuring-playbook-bridge-mx-puppet-slack.md) (optional)
+
+- [Setting up MX Puppet Instagram bridging](configuring-playbook-bridge-mx-puppet-instagram.md) (optional)
+
+- [Setting up MX Puppet Twitter bridging](configuring-playbook-bridge-mx-puppet-twitter.md) (optional)
+
+- [Setting up MX Puppet Discord bridging](configuring-playbook-bridge-mx-puppet-discord.md) (optional)
+
+- [Setting up MX Puppet Steam bridging](configuring-playbook-bridge-mx-puppet-steam.md) (optional)
+
 - [Setting up Email2Matrix](configuring-playbook-email2matrix.md) (optional)
+
+- [Setting up Matrix SMS bridging](configuring-playbook-bridge-matrix-bridge-sms.md) (optional)
+
+
+### Bots
+
+- [Setting up matrix-reminder-bot](configuring-playbook-bot-matrix-reminder-bot.md) (optional)

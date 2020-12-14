@@ -33,11 +33,17 @@ matrix_synapse_root_log_level: "INFO"
 
 Re-run the playbook after making these configuration changes.
 
+## Remove unused Docker data
+
+You can free some disk space from Docker, see [docker system prune](https://docs.docker.com/engine/reference/commandline/system_prune/) for more information.
+```bash
+ansible-playbook -i inventory/hosts setup.yml --tags=run-docker-prune
+```
 
 ## Postgres
 
 See the dedicated [PostgreSQL Maintenance](maintenance-postgres.md) documentation page.
 
-## Mxisd
+## Ma1sd
 
-See the dedicated [Adjusting mxisd Identity Server configuration](configuring-playbook-mxisd.md) documentation page.
+See the dedicated [Adjusting ma1sd Identity Server configuration](configuring-playbook-ma1sd.md) documentation page.
